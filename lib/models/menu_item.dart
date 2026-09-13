@@ -9,6 +9,8 @@ class MenuItem {
   final String category;
   final String imageUrl;
   final bool isAvailable;
+  final int order;
+  final int createdAt;
 
   MenuItem({
     required this.id,
@@ -21,7 +23,9 @@ class MenuItem {
     required this.category,
     required this.imageUrl,
     this.isAvailable = true,
-  });
+    this.order = 0,
+    int? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now().millisecondsSinceEpoch;
 
   factory MenuItem.fromJson(Map<String, dynamic> json) {
     return MenuItem(
@@ -35,6 +39,8 @@ class MenuItem {
       category: json['category'] ?? '',
       imageUrl: json['imageUrl'] ?? '',
       isAvailable: json['isAvailable'] ?? true,
+      order: (json['order'] as num?)?.toInt() ?? 0,
+      createdAt: (json['createdAt'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -50,6 +56,8 @@ class MenuItem {
       'category': category,
       'imageUrl': imageUrl,
       'isAvailable': isAvailable,
+      'order': order,
+      'createdAt': createdAt,
     };
   }
 
@@ -63,6 +71,8 @@ class MenuItem {
     String? category,
     String? imageUrl,
     bool? isAvailable,
+    int? order,
+    int? createdAt,
   }) {
     return MenuItem(
       id: this.id,
@@ -75,6 +85,8 @@ class MenuItem {
       category: category ?? this.category,
       imageUrl: imageUrl ?? this.imageUrl,
       isAvailable: isAvailable ?? this.isAvailable,
+      order: order ?? this.order,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 }

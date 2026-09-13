@@ -3,12 +3,14 @@ class Category {
   final String nameAr;
   final String nameEn;
   final String? icon;
+  final int order;
 
   Category({
     required this.id,
     required this.nameAr,
     required this.nameEn,
     this.icon,
+    this.order = 0,
   });
 
   factory Category.fromJson(Map<String, dynamic> json) {
@@ -17,6 +19,7 @@ class Category {
       nameAr: json['nameAr'] ?? '',
       nameEn: json['nameEn'] ?? '',
       icon: json['icon'],
+      order: (json['order'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -26,6 +29,7 @@ class Category {
       'nameAr': nameAr,
       'nameEn': nameEn,
       'icon': icon,
+      'order': order,
     };
   }
 
@@ -33,12 +37,14 @@ class Category {
     String? nameAr,
     String? nameEn,
     String? icon,
+    int? order,
   }) {
     return Category(
       id: this.id,
       nameAr: nameAr ?? this.nameAr,
       nameEn: nameEn ?? this.nameEn,
       icon: icon ?? this.icon,
+      order: order ?? this.order,
     );
   }
 }

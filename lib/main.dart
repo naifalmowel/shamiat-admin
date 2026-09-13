@@ -2,16 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'providers/admin_provider.dart';
+import 'providers/language_provider.dart';
 import 'services/supabase_service.dart';
 import 'screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase (Requires google-services.json)
+  // Initialize Firebase
   try {
     await Firebase.initializeApp(
-      options: FirebaseOptions(
+      options: const FirebaseOptions(
           apiKey: "AIzaSyC0OTLvYlB7xo1VUUFqcvmvdvn3DsScT4s",
           authDomain: "shamiat.firebaseapp.com",
           projectId: "shamiat",
@@ -22,7 +23,7 @@ void main() async {
       ),
     );
   } catch (e) {
-    print('Firebase Init Error: $e');
+    debugPrint('Firebase Init Error: $e');
   }
 
   // Initialize Supabase
@@ -30,7 +31,10 @@ void main() async {
 
   runApp(
     MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => AdminProvider())],
+      providers: [
+        ChangeNotifierProvider(create: (_) => AdminProvider()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
+      ],
       child: const ShamiatAdminApp(),
     ),
   );
@@ -45,9 +49,12 @@ class ShamiatAdminApp extends StatelessWidget {
     const accentColor = Color(0xFFBC8A5F);
     const lightBg = Color(0xFFFAF9F6);
 
+    final lang = Provider.of<LanguageProvider>(context);
+
     return MaterialApp(
-      title: 'شاميات أدمن الذكية',
+      title: lang.getText(ar: 'شاميات أدمن الذكية', en: 'Shamiat Smart Admin'),
       debugShowCheckedModeBanner: false,
+      locale: lang.currentLocale,
       theme: ThemeData(
         useMaterial3: true,
         fontFamily: 'Cairo',

@@ -1,11 +1,19 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shimmer/shimmer.dart';
 import '../../providers/admin_provider.dart';
+import '../../providers/language_provider.dart';
 import '../../models/menu_item.dart';
-import '../../models/category.dart';
+
+enum ProductSortOption {
+  manual, // According to custom drag/order
+  newest, // Recently added first
+  priceLowToHigh, // Lowest price first
+  priceHighToLow, // Highest price first
+}
 
 class ProductsTab extends StatefulWidget {
   const ProductsTab({super.key});
@@ -17,35 +25,53 @@ class ProductsTab extends StatefulWidget {
 class _ProductsTabState extends State<ProductsTab> {
   String _searchQuery = '';
   String _selectedCategory = 'الكل';
+  ProductSortOption _sortOption = ProductSortOption.manual;
 
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<AdminProvider>(context);
+    final lang = Provider.of<LanguageProvider>(context);
     const primaryColor = Color(0xFF1B4332);
     const accentColor = Color(0xFFBC8A5F);
 
-    final width = MediaQuery.of(context).size.width;
-    final isMobile = width < 600;
-
-    // Filter products outside the list to keep it fast
-    final filtered = provider.products.where((p) {
-      final matchesSearch = _searchQuery.isEmpty || 
-          p.nameAr.contains(_searchQuery) ||
-          p.nameEn.toLowerCase().contains(_searchQuery.toLowerCase());
+    // 1. Filter products
+    List<MenuItem> filtered = provider.products.where((p) {
+      final query = _searchQuery.trim().toLowerCase();
+      final matchesSearch = query.isEmpty ||
+          p.nameAr.toLowerCase().contains(query) ||
+          p.nameEn.toLowerCase().contains(query);
       final matchesCat = _selectedCategory == 'الكل' || p.category == _selectedCategory;
       return matchesSearch && matchesCat;
     }).toList();
 
+    // 2. Sort products
+    switch (_sortOption) {
+      case ProductSortOption.manual:
+        filtered.sort((a, b) => a.order.compareTo(b.order));
+        break;
+      case ProductSortOption.newest:
+        filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        break;
+      case ProductSortOption.priceLowToHigh:
+        filtered.sort((a, b) => a.price.compareTo(b.price));
+        break;
+      case ProductSortOption.priceHighToLow:
+        filtered.sort((a, b) => b.price.compareTo(a.price));
+        break;
+    }
+
+    final canReorder = _sortOption == ProductSortOption.manual && _selectedCategory != 'الكل' && _searchQuery.isEmpty;
+
     return Column(
       children: [
-        // --- Sticky Top Bar & Filters ---
+        // --- Top Bar (Search + Sort + Add) ---
         Container(
-          padding: EdgeInsets.fromLTRB(15, 15, 15, 10),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
           decoration: BoxDecoration(
             color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -57,16 +83,16 @@ class _ProductsTabState extends State<ProductsTab> {
                 children: [
                   Expanded(
                     child: SizedBox(
-                      height: 45,
+                      height: 44,
                       child: TextField(
-                        textAlign: TextAlign.right,
+                        textAlign: lang.isArabic ? TextAlign.right : TextAlign.left,
                         onChanged: (v) => setState(() => _searchQuery = v),
                         decoration: InputDecoration(
-                          hintText: 'ابحث عن منتج...',
+                          hintText: lang.getText(ar: 'ابحث عن منتج...', en: 'Search product...'),
                           prefixIcon: const Icon(Icons.search, color: primaryColor, size: 20),
                           filled: true,
                           fillColor: Colors.grey[50],
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 15),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(color: Colors.grey[200]!),
@@ -79,7 +105,43 @@ class _ProductsTabState extends State<ProductsTab> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
+
+                  // Sort Menu
+                  PopupMenuButton<ProductSortOption>(
+                    icon: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey[200]!),
+                      ),
+                      child: const Icon(Icons.sort_rounded, color: primaryColor, size: 22),
+                    ),
+                    tooltip: lang.getText(ar: 'ترتيب المنتجات', en: 'Sort Products'),
+                    onSelected: (opt) => setState(() => _sortOption = opt),
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: ProductSortOption.manual,
+                        child: Text(lang.getText(ar: 'الترتيب الافتراضي / يدوي', en: 'Default / Manual Order')),
+                      ),
+                      PopupMenuItem(
+                        value: ProductSortOption.newest,
+                        child: Text(lang.getText(ar: 'المضافة حديثاً', en: 'Recently Added')),
+                      ),
+                      PopupMenuItem(
+                        value: ProductSortOption.priceLowToHigh,
+                        child: Text(lang.getText(ar: 'السعر: من الأدنى للأعلى', en: 'Price: Low to High')),
+                      ),
+                      PopupMenuItem(
+                        value: ProductSortOption.priceHighToLow,
+                        child: Text(lang.getText(ar: 'السعر: من الأعلى للأدنى', en: 'Price: High to Low')),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Add Button
                   Material(
                     color: primaryColor,
                     borderRadius: BorderRadius.circular(12),
@@ -87,24 +149,30 @@ class _ProductsTabState extends State<ProductsTab> {
                       onTap: () => _openProductEditor(context, null),
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
-                        padding: const EdgeInsets.all(12),
-                        child: const Icon(Icons.add_rounded, color: Colors.white),
+                        padding: const EdgeInsets.all(10),
+                        child: const Icon(Icons.add_rounded, color: Colors.white, size: 24),
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
+
+              // Horizontal Category Filter Bar
               SizedBox(
                 height: 38,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
-                  reverse: true,
+                  physics: const BouncingScrollPhysics(),
                   children: [
-                    _buildCatChip('الكل', _selectedCategory == 'الكل', accentColor, primaryColor),
-                    ...provider.categories.map((c) => 
-                      _buildCatChip(c.id, _selectedCategory == c.id, accentColor, primaryColor, label: c.nameAr)
-                    ),
+                    _buildCatChip('الكل', _selectedCategory == 'الكل', accentColor, primaryColor, label: lang.getText(ar: 'الكل', en: 'All')),
+                    ...provider.categories.map((c) => _buildCatChip(
+                          c.id,
+                          _selectedCategory == c.id,
+                          accentColor,
+                          primaryColor,
+                          label: lang.isArabic ? c.nameAr : c.nameEn,
+                        )),
                   ],
                 ),
               ),
@@ -112,25 +180,66 @@ class _ProductsTabState extends State<ProductsTab> {
           ),
         ),
 
+        // Hint for Reordering
+        if (canReorder)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            color: accentColor.withValues(alpha: 0.12),
+            child: Row(
+              children: [
+                const Icon(Icons.touch_app_rounded, size: 16, color: primaryColor),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    lang.getText(
+                      ar: 'يمكنك إعادة ترتيب المنتجات في هذه الفئة عبر السحب والإفلات',
+                      en: 'You can reorder products in this category via drag and drop',
+                    ),
+                    style: const TextStyle(fontSize: 12, color: primaryColor, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
         // --- Products List Optimized ---
         Expanded(
-          child: provider.isLoading && provider.products.isEmpty
-              ? const Center(child: CircularProgressIndicator())
+          child: provider.isInitialLoading
+              ? _buildShimmerLoading()
               : filtered.isEmpty 
-                  ? const Center(child: Text('لا توجد منتجات تطابق بحثك'))
-                  : ListView.separated(
-                      padding: const EdgeInsets.all(12),
-                      itemCount: filtered.length,
-                      separatorBuilder: (c, i) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        return RepaintBoundary(
-                          child: _ProductCard(
-                            key: ValueKey(filtered[index].id), 
-                            item: filtered[index]
-                          ),
-                        );
-                      },
-                    ),
+                  ? Center(child: Text(lang.getText(ar: 'لا توجد منتجات', en: 'No products found')))
+                  : canReorder
+                      ? ReorderableListView.builder(
+                          padding: const EdgeInsets.all(10),
+                          itemCount: filtered.length,
+                          onReorder: (oldIndex, newIndex) {
+                            provider.reorderProductsInList(filtered, oldIndex, newIndex);
+                          },
+                          itemBuilder: (context, index) {
+                            return RepaintBoundary(
+                              key: ValueKey(filtered[index].id),
+                              child: _ProductCard(
+                                item: filtered[index],
+                                isReorderable: true,
+                                dragIndex: index,
+                              ),
+                            );
+                          },
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.all(10),
+                          itemCount: filtered.length,
+                          separatorBuilder: (c, i) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            return RepaintBoundary(
+                              child: _ProductCard(
+                                key: ValueKey(filtered[index].id),
+                                item: filtered[index],
+                                isReorderable: false,
+                              ),
+                            );
+                          },
+                        ),
         ),
       ],
     );
@@ -138,15 +247,15 @@ class _ProductsTabState extends State<ProductsTab> {
 
   Widget _buildCatChip(String id, bool selected, Color accent, Color primary, {String? label}) {
     return Padding(
-      padding: const EdgeInsets.only(left: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 4.0),
       child: ChoiceChip(
         label: Text(label ?? id),
         selected: selected,
         onSelected: (v) => setState(() => _selectedCategory = id),
-        selectedColor: primary.withOpacity(0.1),
-        backgroundColor: Colors.white,
+        selectedColor: primary.withValues(alpha: 0.12),
+        backgroundColor: Colors.grey[50],
         labelStyle: TextStyle(
-          color: selected ? primary : Colors.black54,
+          color: selected ? primary : Colors.black87,
           fontSize: 13,
           fontWeight: selected ? FontWeight.bold : FontWeight.normal,
         ),
@@ -166,71 +275,135 @@ class _ProductsTabState extends State<ProductsTab> {
       builder: (ctx) => ProductEditorDialog(item: item),
     );
   }
+
+  Widget _buildShimmerLoading() {
+    return ListView.separated(
+      padding: const EdgeInsets.all(12),
+      itemCount: 8,
+      separatorBuilder: (c, i) => const SizedBox(height: 10),
+      itemBuilder: (context, index) => Shimmer.fromColors(
+        baseColor: Colors.grey[300]!,
+        highlightColor: Colors.grey[100]!,
+        child: Container(
+          height: 100,
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+        ),
+      ),
+    );
+  }
 }
 
 class _ProductCard extends StatelessWidget {
   final MenuItem item;
-  const _ProductCard({super.key, required this.item});
+  final bool isReorderable;
+  final int? dragIndex;
+
+  const _ProductCard({super.key, required this.item, this.isReorderable = false, this.dragIndex});
 
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<AdminProvider>(context, listen: false);
+    final lang = Provider.of<LanguageProvider>(context);
     const primaryColor = Color(0xFF1B4332);
     const accentColor = Color(0xFFBC8A5F);
-    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    final displayName = lang.isArabic ? item.nameAr : item.nameEn;
+    final displayDesc = lang.isArabic ? item.descriptionAr : item.descriptionEn;
 
     return Card(
-      elevation: 0,
+      elevation: 1,
+      margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(14),
         side: BorderSide(color: Colors.grey[200]!),
       ),
       child: Padding(
         padding: const EdgeInsets.all(8.0),
         child: Row(
           children: [
+            // Product Image Thumbnail
             ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
               child: item.imageUrl.isNotEmpty
                   ? CachedNetworkImage(
                       imageUrl: item.imageUrl,
-                      width: isMobile ? 80 : 90,
-                      height: isMobile ? 80 : 90,
+                      width: 72,
+                      height: 72,
                       fit: BoxFit.cover,
-                      placeholder: (c, url) => Container(color: Colors.grey[100]),
-                      errorWidget: (c, url, e) => const Icon(Icons.broken_image),
+                      placeholder: (c, url) => Shimmer.fromColors(
+                        baseColor: Colors.grey[200]!,
+                        highlightColor: Colors.grey[100]!,
+                        child: Container(width: 72, height: 72, color: Colors.white),
+                      ),
+                      errorWidget: (c, url, e) => Container(
+                        width: 72,
+                        height: 72,
+                        color: accentColor.withValues(alpha: 0.1),
+                        child: const Icon(Icons.broken_image, color: Colors.grey, size: 30),
+                      ),
                     )
                   : Container(
-                      width: isMobile ? 80 : 90,
-                      height: isMobile ? 80 : 90,
-                      color: accentColor.withOpacity(0.1),
-                      child: const Icon(Icons.fastfood, color: accentColor),
+                      width: 72,
+                      height: 72,
+                      color: accentColor.withValues(alpha: 0.1),
+                      child: const Icon(Icons.fastfood_rounded, color: accentColor, size: 32),
                     ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
+
+            // Product Information
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(item.nameAr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  Text(item.nameEn, style: TextStyle(color: Colors.grey[600], fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 5),
-                  Text('${item.price} AED', style: const TextStyle(color: primaryColor, fontWeight: FontWeight.w900, fontSize: 15)),
+                  Text(
+                    displayName,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (displayDesc.isNotEmpty)
+                    Text(
+                      displayDesc,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        '${item.price} AED',
+                        style: const TextStyle(color: primaryColor, fontWeight: FontWeight.w900, fontSize: 14),
+                      ),
+                      if (item.discountPrice != null && item.discountPrice! > 0) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          '${item.discountPrice} AED',
+                          style: const TextStyle(
+                            color: Colors.red,
+                            decoration: TextDecoration.lineThrough,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ]
+                    ],
+                  ),
                 ],
               ),
             ),
-            const VerticalDivider(width: 20),
+
+            // Switch & Actions
             Column(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 SizedBox(
-                  height: 35,
+                  height: 32,
                   child: Transform.scale(
-                    scale: 0.8,
+                    scale: 0.75,
                     child: Switch(
                       value: item.isAvailable,
-                      activeColor: primaryColor,
+                      activeThumbColor: primaryColor,
                       onChanged: (v) => provider.toggleAvailability(item),
                     ),
                   ),
@@ -239,18 +412,25 @@ class _ProductCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.edit_note, color: accentColor),
+                      icon: const Icon(Icons.edit_note_rounded, color: accentColor, size: 22),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       onPressed: () => _openEditor(context),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     IconButton(
-                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                      icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
-                      onPressed: () => _confirmDelete(context),
+                      onPressed: () => _confirmDelete(context, lang),
                     ),
+                    if (isReorderable && dragIndex != null) ...[
+                      const SizedBox(width: 4),
+                      ReorderableDragStartListener(
+                        index: dragIndex!,
+                        child: const Icon(Icons.drag_handle_rounded, color: Colors.grey, size: 22),
+                      ),
+                    ]
                   ],
                 )
               ],
@@ -264,30 +444,32 @@ class _ProductCard extends StatelessWidget {
   void _openEditor(BuildContext context) {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => ProductEditorDialog(item: item),
     );
   }
 
-  void _confirmDelete(BuildContext context) {
+  void _confirmDelete(BuildContext context, LanguageProvider lang) {
+    final displayName = lang.isArabic ? item.nameAr : item.nameEn;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('حذف المنتج'),
-        content: Text('هل أنت متأكد من حذف "${item.nameAr}"؟'),
+        title: Text(lang.getText(ar: 'حذف المنتج', en: 'Delete Product')),
+        content: Text(lang.getText(
+          ar: 'هل أنت متأكد من حذف "$displayName"؟',
+          en: 'Are you sure you want to delete "$displayName"?',
+        )),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
+            child: Text(lang.getText(ar: 'إلغاء', en: 'Cancel')),
           ),
           TextButton(
             onPressed: () {
-              Provider.of<AdminProvider>(
-                context,
-                listen: false,
-              ).deleteProduct(item);
+              Provider.of<AdminProvider>(context, listen: false).deleteProduct(item);
               Navigator.pop(ctx);
             },
-            child: const Text('حذف', style: TextStyle(color: Colors.red)),
+            child: Text(lang.getText(ar: 'حذف', en: 'Delete'), style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -297,7 +479,6 @@ class _ProductCard extends StatelessWidget {
 
 class ProductEditorDialog extends StatefulWidget {
   final MenuItem? item;
-
   const ProductEditorDialog({super.key, this.item});
 
   @override
@@ -306,137 +487,220 @@ class ProductEditorDialog extends StatefulWidget {
 
 class _ProductEditorDialogState extends State<ProductEditorDialog> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _idC,
-      _nameArC,
-      _nameEnC,
-      _descArC,
-      _descEnC,
-      _priceC,
-      _catC;
-  File? _imageFile;
+  late TextEditingController _idC, _nameArC, _nameEnC, _descArC, _descEnC, _priceC, _discountC, _catC;
+  Uint8List? _imageBytes;
+  String? _imageExtension;
   String? _existingUrl;
 
   @override
   void initState() {
     super.initState();
     final item = widget.item;
-    _idC = TextEditingController(
-      text: item?.id ?? 'pr_${DateTime.now().millisecondsSinceEpoch}',
-    );
+    _idC = TextEditingController(text: item?.id ?? 'pr_${DateTime.now().millisecondsSinceEpoch}');
     _nameArC = TextEditingController(text: item?.nameAr ?? '');
     _nameEnC = TextEditingController(text: item?.nameEn ?? '');
     _descArC = TextEditingController(text: item?.descriptionAr ?? '');
     _descEnC = TextEditingController(text: item?.descriptionEn ?? '');
-    _priceC = TextEditingController(text: item?.price.toString() ?? '');
+    _priceC = TextEditingController(text: item != null ? item.price.toString() : '');
+    _discountC = TextEditingController(text: item?.discountPrice != null ? item!.discountPrice.toString() : '');
     _catC = TextEditingController(text: item?.category ?? '');
     _existingUrl = item?.imageUrl;
   }
 
   Future<void> _pickImage() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (picked != null) setState(() => _imageFile = File(picked.path));
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      final ext = picked.name.split('.').last;
+      setState(() {
+        _imageBytes = bytes;
+        _imageExtension = ext;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<AdminProvider>(context);
+    final lang = Provider.of<LanguageProvider>(context);
     final isEdit = widget.item != null;
+    const primaryColor = Color(0xFF1B4332);
+    const accentColor = Color(0xFFBC8A5F);
 
-    return AlertDialog(
-      title: Text(
-        isEdit ? 'تعديل المنتج' : 'إضافة منتج جديد',
-        textAlign: TextAlign.center,
-      ),
-      content: SizedBox(
-        width: 600,
-        child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            child: Column(
+    final size = MediaQuery.of(context).size;
+    final isMobile = size.width < 600;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      insetPadding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 40, vertical: 24),
+      child: Container(
+        width: isMobile ? double.infinity : 550,
+        constraints: BoxConstraints(maxHeight: size.height * 0.88),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            // Title Bar
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                GestureDetector(
-                  onTap: _pickImage,
-                  child: Container(
-                    width: 150,
-                    height: 150,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(15),
-                      border: Border.all(color: Colors.grey[300]!),
-                    ),
-                    child: _imageFile != null
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(15),
-                            child: Image.file(_imageFile!, fit: BoxFit.cover),
-                          )
-                        : (_existingUrl != null && _existingUrl!.isNotEmpty)
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(15),
-                            child: CachedNetworkImage(
-                              imageUrl: _existingUrl!,
-                              fit: BoxFit.cover,
-                            ),
-                          )
-                        : const Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.add_a_photo, size: 40),
-                              Text('اضف صورة'),
-                            ],
-                          ),
-                  ),
+                Text(
+                  isEdit ? lang.getText(ar: 'تعديل المنتج', en: 'Edit Product') : lang.getText(ar: 'إضافة منتج جديد', en: 'New Product'),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primaryColor),
                 ),
-                const SizedBox(height: 20),
-                _buildField(_nameArC, 'الاسم (عربي)', true),
-                _buildField(_nameEnC, 'الاسم (إنجليزي)', false),
-                _buildField(_descArC, 'الوصف (عربي)', true, lines: 2),
-                _buildField(_descEnC, 'الوصف (إنجليزي)', false, lines: 2),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildField(_priceC, 'السعر', false, isNum: true),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value:
-                            provider.categories.any((c) => c.id == _catC.text)
-                            ? _catC.text
-                            : null,
-                        decoration: const InputDecoration(
-                          labelText: 'الفئة',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: provider.categories
-                            .map(
-                              (c) => DropdownMenuItem(
-                                value: c.id,
-                                child: Text(c.nameAr),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) => _catC.text = v ?? '',
-                      ),
-                    ),
-                  ],
+                IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => Navigator.pop(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
               ],
             ),
-          ),
+            const Divider(height: 20),
+
+            // Scrollable Form
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      // Image Picker Box
+                      GestureDetector(
+                        onTap: _pickImage,
+                        child: Container(
+                          width: 130,
+                          height: 130,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey[300]!),
+                          ),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              if (_imageBytes != null)
+                                ClipRRect(borderRadius: BorderRadius.circular(16), child: Image.memory(_imageBytes!, width: 130, height: 130, fit: BoxFit.cover))
+                              else if (_existingUrl != null && _existingUrl!.isNotEmpty)
+                                ClipRRect(borderRadius: BorderRadius.circular(16), child: CachedNetworkImage(imageUrl: _existingUrl!, width: 130, height: 130, fit: BoxFit.cover))
+                              else
+                                Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.add_photo_alternate_outlined, size: 36, color: accentColor),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      lang.getText(ar: 'صورة المنتج', en: 'Product Photo'),
+                                      style: const TextStyle(fontSize: 11, color: Colors.black54),
+                                    ),
+                                  ],
+                                ),
+                              Positioned(
+                                bottom: 6,
+                                right: 6,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(color: primaryColor, shape: BoxShape.circle),
+                                  child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Arabic and English Names
+                      _buildField(_nameArC, lang.getText(ar: 'الاسم بالعربية *', en: 'Arabic Name *'), true),
+                      _buildField(_nameEnC, lang.getText(ar: 'الاسم بالإنجليزية *', en: 'English Name *'), false),
+
+                      // Descriptions
+                      _buildField(_descArC, lang.getText(ar: 'الوصف بالعربية', en: 'Arabic Description'), true, lines: 2, isRequired: false),
+                      _buildField(_descEnC, lang.getText(ar: 'الوصف بالإنجليزية', en: 'English Description'), false, lines: 2, isRequired: false),
+
+                      // Price and Category Selection
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildField(_priceC, lang.getText(ar: 'السعر (AED) *', en: 'Price (AED) *'), false, isNum: true),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _buildField(_discountC, lang.getText(ar: 'سعر الخصم', en: 'Discount Price'), false, isNum: true, isRequired: false),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+
+                      // Enhanced Category Dropdown
+                      DropdownButtonFormField<String>(
+                        initialValue: provider.categories.any((c) => c.id == _catC.text)
+                            ? _catC.text
+                            : (provider.categories.isNotEmpty ? provider.categories.first.id : null),
+                        decoration: InputDecoration(
+                          labelText: lang.getText(ar: 'فئة المنتج *', en: 'Category *'),
+                          prefixIcon: const Icon(Icons.category_outlined, color: accentColor, size: 20),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
+                        ),
+                        items: provider.categories
+                            .map((c) => DropdownMenuItem(
+                                  value: c.id,
+                                  child: Text(
+                                    lang.isArabic ? c.nameAr : c.nameEn,
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                ))
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null) setState(() => _catC.text = v);
+                        },
+                        validator: (v) => (v == null || v.isEmpty) ? lang.getText(ar: 'يرجى اختيار الفئة', en: 'Select category') : null,
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const Divider(height: 20),
+
+            // Action Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(lang.getText(ar: 'إلغاء', en: 'Cancel')),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: provider.isLoading ? null : _save,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: provider.isLoading
+                        ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : Text(lang.getText(ar: 'حفظ المنتج', en: 'Save Product'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('إلغاء'),
-        ),
-        ElevatedButton(
-          onPressed: provider.isLoading ? null : _save,
-          child: provider.isLoading
-              ? const CircularProgressIndicator()
-              : const Text('حفظ المنتج'),
-        ),
-      ],
     );
   }
 
@@ -446,6 +710,7 @@ class _ProductEditorDialogState extends State<ProductEditorDialog> {
     bool isAr, {
     int lines = 1,
     bool isNum = false,
+    bool isRequired = true,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -453,33 +718,44 @@ class _ProductEditorDialogState extends State<ProductEditorDialog> {
         controller: c,
         textAlign: isAr ? TextAlign.right : TextAlign.left,
         maxLines: lines,
-        keyboardType: isNum ? TextInputType.number : TextInputType.text,
+        keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
         decoration: InputDecoration(
           labelText: label,
-          border: const OutlineInputBorder(),
+          filled: true,
+          fillColor: Colors.grey[50],
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
         ),
-        validator: (v) => v!.isEmpty ? 'مطلوب' : null,
+        validator: (v) {
+          if (isRequired && (v == null || v.trim().isEmpty)) {
+            return 'مطلوب';
+          }
+          return null;
+        },
       ),
     );
   }
 
   void _save() async {
     if (_formKey.currentState!.validate()) {
+      final provider = Provider.of<AdminProvider>(context, listen: false);
       final item = MenuItem(
         id: _idC.text,
-        nameAr: _nameArC.text,
-        nameEn: _nameEnC.text,
-        descriptionAr: _descArC.text,
-        descriptionEn: _descEnC.text,
-        price: double.tryParse(_priceC.text) ?? 0.0,
-        category: _catC.text,
+        nameAr: _nameArC.text.trim(),
+        nameEn: _nameEnC.text.trim().isEmpty ? _nameArC.text.trim() : _nameEnC.text.trim(),
+        descriptionAr: _descArC.text.trim(),
+        descriptionEn: _descEnC.text.trim(),
+        price: double.tryParse(_priceC.text.trim()) ?? 0.0,
+        discountPrice: double.tryParse(_discountC.text.trim()),
+        category: _catC.text.isEmpty && provider.categories.isNotEmpty ? provider.categories.first.id : _catC.text,
         imageUrl: _existingUrl ?? '',
         isAvailable: widget.item?.isAvailable ?? true,
+        order: widget.item?.order ?? 999,
+        createdAt: widget.item?.createdAt,
       );
-      await Provider.of<AdminProvider>(
-        context,
-        listen: false,
-      ).saveProduct(item, _imageFile);
+
+      await provider.saveProduct(item, _imageBytes, _imageExtension);
       if (mounted) Navigator.pop(context);
     }
   }

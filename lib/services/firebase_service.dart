@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/menu_item.dart';
 import '../models/category.dart';
+import '../models/offer.dart';
 
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -52,5 +53,51 @@ class FirebaseService {
 
   Future<void> deleteCategory(String id) async {
     await _db.collection('categories').doc(id).delete();
+  }
+
+  // --- Firestore Offers ---
+  Stream<List<Offer>> getOffers() {
+    return _db.collection('offers').snapshots().map((snapshot) =>
+        snapshot.docs.map((doc) => Offer.fromJson(doc.data())).toList());
+  }
+
+  Future<void> addOffer(Offer offer) async {
+    await _db.collection('offers').doc(offer.id).set(offer.toJson());
+  }
+
+  Future<void> updateOffer(Offer offer) async {
+    await _db.collection('offers').doc(offer.id).update(offer.toJson());
+  }
+
+  Future<void> deleteOffer(String id) async {
+    await _db.collection('offers').doc(id).delete();
+  }
+
+  // --- Firestore Batch Order Updates ---
+  Future<void> updateCategoriesOrder(List<Category> categories) async {
+    final batch = _db.batch();
+    for (int i = 0; i < categories.length; i++) {
+      final docRef = _db.collection('categories').doc(categories[i].id);
+      batch.update(docRef, {'order': i});
+    }
+    await batch.commit();
+  }
+
+  Future<void> updateProductsOrder(List<MenuItem> items) async {
+    final batch = _db.batch();
+    for (int i = 0; i < items.length; i++) {
+      final docRef = _db.collection('products').doc(items[i].id);
+      batch.update(docRef, {'order': i});
+    }
+    await batch.commit();
+  }
+
+  Future<void> updateOffersOrder(List<Offer> offers) async {
+    final batch = _db.batch();
+    for (int i = 0; i < offers.length; i++) {
+      final docRef = _db.collection('offers').doc(offers[i].id);
+      batch.update(docRef, {'order': i});
+    }
+    await batch.commit();
   }
 }

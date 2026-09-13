@@ -1,11 +1,10 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:path/path.dart' as p;
 
 class SupabaseService {
   static const String supabaseUrl = 'https://gosqrnkrebpdqvhazugw.supabase.co';
   static const String supabaseKey = 'sb_publishable_N0iUuNR5DD-yKtgCqcXglg_K2ySU9pj';
-  static const String bucketName = 'menu-images';
+  static const String bucketName = 'projects';
 
   static Future<void> initialize() async {
     await Supabase.initialize(
@@ -17,12 +16,15 @@ class SupabaseService {
 
   final SupabaseClient _client = Supabase.instance.client;
 
-  Future<String?> uploadImage(File file, String folder) async {
+  Future<String?> uploadImageBytes(Uint8List bytes, String fileName, String folder) async {
     try {
-      final String fileName = '${DateTime.now().millisecondsSinceEpoch}${p.extension(file.path)}';
       final String path = '$folder/$fileName';
 
-      await _client.storage.from(bucketName).upload(path, file);
+      await _client.storage.from(bucketName).uploadBinary(
+        path,
+        bytes,
+        fileOptions: const FileOptions(cacheControl: '3600', upsert: true),
+      );
 
       final String publicUrl = _client.storage.from(bucketName).getPublicUrl(path);
       return publicUrl;
