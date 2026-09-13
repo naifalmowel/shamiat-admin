@@ -373,21 +373,25 @@ class _ProductCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Text(
-                        '${item.price} AED',
-                        style: const TextStyle(color: primaryColor, fontWeight: FontWeight.w900, fontSize: 14),
-                      ),
                       if (item.discountPrice != null && item.discountPrice! > 0) ...[
-                        const SizedBox(width: 6),
                         Text(
                           '${item.discountPrice} AED',
+                          style: const TextStyle(color: primaryColor, fontWeight: FontWeight.w900, fontSize: 14),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${item.price} AED',
                           style: const TextStyle(
                             color: Colors.red,
                             decoration: TextDecoration.lineThrough,
                             fontSize: 11,
                           ),
                         ),
-                      ]
+                      ] else
+                        Text(
+                          '${item.price} AED',
+                          style: const TextStyle(color: primaryColor, fontWeight: FontWeight.w900, fontSize: 14),
+                        ),
                     ],
                   ),
                 ],
