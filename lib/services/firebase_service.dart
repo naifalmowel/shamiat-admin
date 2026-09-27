@@ -1,8 +1,10 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/menu_item.dart';
 import '../models/category.dart';
 import '../models/offer.dart';
+import '../models/app_settings.dart';
 
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -73,6 +75,72 @@ class FirebaseService {
     await _db.collection('offers').doc(id).delete();
   }
 
+  // --- Firestore App Settings ---
+  Stream<AppSettings> getSettings() {
+    return _db.collection('settings').doc('app_config').snapshots().map((snapshot) {
+      if (snapshot.exists && snapshot.data() != null) {
+        return AppSettings.fromJson(snapshot.data()!);
+      }
+      return AppSettings(); // Default settings
+    });
+  }
+
+  Future<void> updateSettings(AppSettings settings) async {
+    await _db.collection('settings').doc('app_config').set(settings.toJson(), SetOptions(merge: true));
+  }
+
+  // --- Firestore Admins ---
+  Stream<List<Map<String, dynamic>>> getAdmins() {
+    return _db.collection('admins').snapshots().map((snapshot) =>
+        snapshot.docs.map((doc) => doc.data()).toList());
+  }
+
+  Future<void> updateAdminProfile(String uid, Map<String, dynamic> data) async {
+    await _db.collection('admins').doc(uid).update(data);
+  }
+
+  Future<void> addAdminRecord(String email, String name, String role, String password) async {
+    try {
+      // 1. Create User in Firebase Auth using a temporary secondary app instance
+      // to avoid signing out the current admin.
+      FirebaseApp tempApp = await Firebase.initializeApp(
+        name: 'TempApp_${DateTime.now().millisecondsSinceEpoch}',
+        options: Firebase.app().options,
+      );
+      FirebaseAuth tempAuth = FirebaseAuth.instanceFor(app: tempApp);
+      
+      UserCredential cred = await tempAuth.createUserWithEmailAndPassword(
+        email: email, 
+        password: password
+      );
+      
+      String uid = cred.user!.uid;
+
+      // 2. Add record to Firestore with the REAL UID from Auth
+      await _db.collection('admins').doc(uid).set({
+        'uid': uid,
+        'email': email,
+        'name': name,
+        'role': role,
+        'password': password, 
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // 3. Cleanup temp app
+      await tempApp.delete();
+    } catch (e) {
+      print('Error adding admin to Auth/Firestore: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteAdmin(String uid) async {
+    // Note: On client-side Firebase SDK, you CANNOT delete other users from Auth.
+    // This requires Firebase Admin SDK (Node.js/Cloud Functions).
+    // For now, we only delete the record from Firestore.
+    await _db.collection('admins').doc(uid).delete();
+  }
+
   // --- Firestore Batch Order Updates ---
   Future<void> updateCategoriesOrder(List<Category> categories) async {
     final batch = _db.batch();
@@ -99,5 +167,28 @@ class FirebaseService {
       batch.update(docRef, {'order': i});
     }
     await batch.commit();
+  }
+
+  /// Clears only the imageUrl field for all products in Firestore.
+  Future<void> clearAllProductImagesUrls() async {
+    final snapshot = await _db.collection('products').get();
+    final batch = _db.batch();
+    for (final doc in snapshot.docs) {
+      batch.update(doc.reference, {'imageUrl': ''});
+    }
+    await batch.commit();
+  }
+
+  /// Clears all menu data from Firestore.
+  Future<void> clearAllMenuData() async {
+    final collections = ['products', 'categories', 'offers'];
+    for (final col in collections) {
+      final snapshot = await _db.collection(col).get();
+      final batch = _db.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
   }
 }

@@ -5,8 +5,7 @@ import '../providers/language_provider.dart';
 import 'tabs/products_tab.dart';
 import 'tabs/categories_tab.dart';
 import 'tabs/offers_tab.dart';
-import 'login_screen.dart';
-import '../services/firebase_service.dart';
+import 'tabs/system_tab.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -38,40 +37,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
       const ProductsTab(),
       const CategoriesTab(),
       const OffersTab(),
-      Center(child: Text(lang.getText(ar: 'إدارة المستخدمين (قريباً)', en: 'Users Management (Soon)'))),
+      const SystemTab(),
     ];
 
     return Directionality(
-      textDirection: lang.isArabic ? TextDirection.rtl : TextDirection.ltr,
+      textDirection: TextDirection.rtl, // Fixed RTL for branding consistency
       child: Scaffold(
         backgroundColor: surfaceColor,
         appBar: AppBar(
-          title: Text(
-            lang.getText(ar: 'شاميات | لوحة الإدارة الذكية', en: 'Shamiat | Smart Dashboard'),
-            style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2, fontSize: 18),
+          centerTitle: false,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'SHAMIAT',
+                style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 20),
+              ),
+              Text(
+                lang.getText(ar: 'لوحة الإدارة الذكية', en: 'Smart Admin Panel'),
+                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w300, letterSpacing: 1),
+              ),
+            ],
           ),
           elevation: 0,
           actions: [
-            // Language Toggle Action
-            TextButton.icon(
-              onPressed: () => lang.toggleLanguage(),
-              icon: const Icon(Icons.language_rounded, color: accentColor, size: 20),
-              label: Text(
-                lang.isArabic ? 'English' : 'عربي',
-                style: const TextStyle(color: accentColor, fontWeight: FontWeight.bold),
+            // User Avatar with First Letter
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: accentColor,
+                child: const Text(
+                  'A', // Placeholder for Admin, can be dynamic later
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                ),
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.exit_to_app_rounded),
-              tooltip: lang.getText(ar: 'تسجيل الخروج', en: 'Logout'),
-              onPressed: () async {
-                await FirebaseService().signOut();
-                if (mounted) {
-                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (c) => const LoginScreen()));
-                }
-              },
-            ),
-            const SizedBox(width: 8),
           ],
         ),
         bottomNavigationBar: isMobile

@@ -7,33 +7,34 @@ import 'services/supabase_service.dart';
 import 'screens/login_screen.dart';
 
 void main() async {
+  // 1. Start engine immediately
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase
+  // 2. Fast Initialization with timeout to prevent hanging
   try {
-    await Firebase.initializeApp(
-      options: const FirebaseOptions(
-          apiKey: "AIzaSyC0OTLvYlB7xo1VUUFqcvmvdvn3DsScT4s",
-          authDomain: "shamiat.firebaseapp.com",
-          projectId: "shamiat",
-          storageBucket: "shamiat.firebasestorage.app",
-          messagingSenderId: "944141429395",
-          appId: "1:944141429395:web:034f453403a0ed9c47fb66",
-          measurementId: "G-VY27F0N9VG"
+    await Future.wait([
+      Firebase.initializeApp(
+        options: const FirebaseOptions(
+            apiKey: "AIzaSyC0OTLvYlB7xo1VUUFqcvmvdvn3DsScT4s",
+            authDomain: "shamiat.firebaseapp.com",
+            projectId: "shamiat",
+            storageBucket: "shamiat.firebasestorage.app",
+            messagingSenderId: "944141429395",
+            appId: "1:944141429395:web:034f453403a0ed9c47fb66",
+            measurementId: "G-VY27F0N9VG"
+        ),
       ),
-    );
+      SupabaseService.initialize(),
+    ]).timeout(const Duration(seconds: 4));
   } catch (e) {
-    debugPrint('Firebase Init Error: $e');
+    debugPrint('Initialization handled or timed out: $e');
   }
-
-  // Initialize Supabase
-  await SupabaseService.initialize();
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AdminProvider()),
         ChangeNotifierProvider(create: (_) => LanguageProvider()),
+        ChangeNotifierProvider(create: (_) => AdminProvider()),
       ],
       child: const ShamiatAdminApp(),
     ),
@@ -55,6 +56,12 @@ class ShamiatAdminApp extends StatelessWidget {
       title: lang.getText(ar: 'شاميات أدمن الذكية', en: 'Shamiat Smart Admin'),
       debugShowCheckedModeBanner: false,
       locale: lang.currentLocale,
+      builder: (context, child) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: child!,
+        );
+      },
       theme: ThemeData(
         useMaterial3: true,
         fontFamily: 'Cairo',
@@ -65,12 +72,6 @@ class ShamiatAdminApp extends StatelessWidget {
           surface: Colors.white,
         ),
         scaffoldBackgroundColor: lightBg,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: primaryColor,
-          foregroundColor: Colors.white,
-          centerTitle: true,
-          elevation: 2,
-        ),
       ),
       home: const LoginScreen(),
     );

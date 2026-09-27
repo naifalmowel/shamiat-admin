@@ -1,3 +1,94 @@
+class OptionChoice {
+  final String nameAr;
+  final String nameEn;
+  final double price;
+
+  OptionChoice({
+    required this.nameAr,
+    required this.nameEn,
+    this.price = 0.0,
+  });
+
+  factory OptionChoice.fromJson(Map<String, dynamic> json) {
+    return OptionChoice(
+      nameAr: json['nameAr'] ?? json['name'] ?? '',
+      nameEn: json['nameEn'] ?? '',
+      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'nameAr': nameAr,
+      'nameEn': nameEn,
+      'price': price,
+    };
+  }
+
+  OptionChoice copyWith({
+    String? nameAr,
+    String? nameEn,
+    double? price,
+  }) {
+    return OptionChoice(
+      nameAr: nameAr ?? this.nameAr,
+      nameEn: nameEn ?? this.nameEn,
+      price: price ?? this.price,
+    );
+  }
+}
+
+class MenuItemOptionGroup {
+  final String titleAr;
+  final String titleEn;
+  final String type; // 'single' or 'multiple'
+  final List<OptionChoice> choices;
+
+  MenuItemOptionGroup({
+    required this.titleAr,
+    required this.titleEn,
+    this.type = 'single',
+    required this.choices,
+  });
+
+  factory MenuItemOptionGroup.fromJson(Map<String, dynamic> json) {
+    var rawChoices = json['choices'] as List? ?? [];
+    List<OptionChoice> choicesList = rawChoices
+        .map((c) => OptionChoice.fromJson(Map<String, dynamic>.from(c)))
+        .toList();
+
+    return MenuItemOptionGroup(
+      titleAr: json['titleAr'] ?? json['title'] ?? '',
+      titleEn: json['titleEn'] ?? '',
+      type: json['type'] ?? 'single',
+      choices: choicesList,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'titleAr': titleAr,
+      'titleEn': titleEn,
+      'type': type,
+      'choices': choices.map((c) => c.toJson()).toList(),
+    };
+  }
+
+  MenuItemOptionGroup copyWith({
+    String? titleAr,
+    String? titleEn,
+    String? type,
+    List<OptionChoice>? choices,
+  }) {
+    return MenuItemOptionGroup(
+      titleAr: titleAr ?? this.titleAr,
+      titleEn: titleEn ?? this.titleEn,
+      type: type ?? this.type,
+      choices: choices ?? this.choices,
+    );
+  }
+}
+
 class MenuItem {
   final String id;
   final String nameAr;
@@ -11,6 +102,7 @@ class MenuItem {
   final bool isAvailable;
   final int order;
   final int createdAt;
+  final List<MenuItemOptionGroup> options;
 
   MenuItem({
     required this.id,
@@ -25,9 +117,15 @@ class MenuItem {
     this.isAvailable = true,
     this.order = 0,
     int? createdAt,
+    this.options = const [],
   }) : createdAt = createdAt ?? DateTime.now().millisecondsSinceEpoch;
 
   factory MenuItem.fromJson(Map<String, dynamic> json) {
+    var rawOptions = json['options'] as List? ?? [];
+    List<MenuItemOptionGroup> optionsList = rawOptions
+        .map((o) => MenuItemOptionGroup.fromJson(Map<String, dynamic>.from(o)))
+        .toList();
+
     return MenuItem(
       id: json['id'] ?? '',
       nameAr: json['nameAr'] ?? '',
@@ -41,6 +139,7 @@ class MenuItem {
       isAvailable: json['isAvailable'] ?? true,
       order: (json['order'] as num?)?.toInt() ?? 0,
       createdAt: (json['createdAt'] as num?)?.toInt() ?? 0,
+      options: optionsList,
     );
   }
 
@@ -58,6 +157,7 @@ class MenuItem {
       'isAvailable': isAvailable,
       'order': order,
       'createdAt': createdAt,
+      'options': options.map((o) => o.toJson()).toList(),
     };
   }
 
@@ -73,9 +173,10 @@ class MenuItem {
     bool? isAvailable,
     int? order,
     int? createdAt,
+    List<MenuItemOptionGroup>? options,
   }) {
     return MenuItem(
-      id: this.id,
+      id: id,
       nameAr: nameAr ?? this.nameAr,
       nameEn: nameEn ?? this.nameEn,
       descriptionAr: descriptionAr ?? this.descriptionAr,
@@ -87,6 +188,7 @@ class MenuItem {
       isAvailable: isAvailable ?? this.isAvailable,
       order: order ?? this.order,
       createdAt: createdAt ?? this.createdAt,
+      options: options ?? this.options,
     );
   }
 }

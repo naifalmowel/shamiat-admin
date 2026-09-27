@@ -89,7 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
             decoration: const BoxDecoration(
               color: primaryColor,
               image: DecorationImage(
-                image: NetworkImage('https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=2070'),
+                image: AssetImage('assets/images/splash.webp'),
                 fit: BoxFit.cover,
                 opacity: 0.15,
               ),
@@ -104,12 +104,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   flex: 3,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.3),
+                      color: Colors.black.withValues(alpha: 0.3),
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Image.asset('assets/images/bg.png', width: 250, errorBuilder: (c, e, s) => const Icon(Icons.restaurant_menu_rounded, size: 100, color: accentColor)),
+                        Image.asset('assets/images/bg.webp', width: 250, errorBuilder: (c, e, s) => const Icon(Icons.restaurant_menu_rounded, size: 100, color: accentColor)),
                         const SizedBox(height: 30),
                         const Text(
                           'شاميات | SHAMIAT',
@@ -146,7 +146,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    primaryColor.withOpacity(0.8),
+                    primaryColor.withValues(alpha: 0.8),
                     primaryColor,
                   ],
                 ),
@@ -164,11 +164,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: Colors.white.withOpacity(0.1),
-                              border: Border.all(color: accentColor.withOpacity(0.5), width: 2),
+                              color: Colors.white.withValues(alpha: 0.1),
+                              border: Border.all(color: accentColor.withValues(alpha: 0.5), width: 2),
                             ),
                             child: Image.asset(
-                              'assets/images/bg.png', 
+                              'assets/images/bg.webp',
                               width: 120, 
                               height: 120,
                               errorBuilder: (c, e, s) => const Icon(Icons.restaurant_menu_rounded, size: 80, color: accentColor)
@@ -183,7 +183,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             borderRadius: BorderRadius.circular(25),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
+                                color: Colors.black.withValues(alpha: 0.2),
                                 blurRadius: 20,
                                 offset: const Offset(0, 10),
                               ),
@@ -277,7 +277,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                 elevation: 4,
-                shadowColor: primaryColor.withOpacity(0.4),
+                shadowColor: primaryColor.withValues(alpha: 0.4),
               ),
               child: _isLoading
                   ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
